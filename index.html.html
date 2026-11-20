@@ -1,0 +1,1763 @@
+s<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>PIXEL DRIFT 3D</title>
+  <!-- Retro Pixel Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <!-- Three.js for crisp 3D Voxel rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    :root {
+      --pixel-bg: #181825;
+      --pixel-panel: #242438;
+      --pixel-border: #ffffff;
+      --pixel-shadow: #0d0d16;
+      --pixel-accent: #ffcc00;
+      --pixel-accent-dark: #cc8800;
+      --pixel-danger: #ff3b5c;
+      --pixel-danger-dark: #a81c35;
+      --pixel-success: #38e54d;
+      --pixel-success-dark: #1f9e2f;
+      --pixel-cyan: #00e5ff;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #111;
+      font-family: 'Press Start 2P', monospace;
+      color: #ffffff;
+      touch-action: none;
+    }
+
+    /* Main Game Container */
+    #game-wrapper {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Crisp Pixelated Canvas Rendering */
+    #game-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    /* Subtle CRT Scanline Overlay for Retro Vibe */
+    .scanlines {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%,
+        rgba(0, 0, 0, 0.14) 50%
+      );
+      background-size: 100% 4px;
+      z-index: 5;
+    }
+
+    /* Chunky 8-Bit CSS Pixel Box & Button Styling */
+    .pixel-box {
+      background: var(--pixel-panel);
+      border: 4px solid var(--pixel-border);
+      box-shadow:
+        0 6px 0 var(--pixel-shadow),
+        inset -4px -4px 0 rgba(0, 0, 0, 0.35),
+        inset 4px 4px 0 rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+    }
+
+    .pixel-btn {
+      font-family: 'Press Start 2P', monospace;
+      background: #3a3a5c;
+      color: #fff;
+      border: 3px solid #fff;
+      box-shadow:
+        0 5px 0 #11111d,
+        inset -3px -3px 0 rgba(0, 0, 0, 0.4),
+        inset 3px 3px 0 rgba(255, 255, 255, 0.2);
+      padding: 12px 16px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: transform 0.06s steps(2), background 0.1s;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 2px;
+    }
+
+    .pixel-btn:hover {
+      background: #4b4b75;
+    }
+
+    .pixel-btn:active, .pixel-btn.active-press {
+      transform: translateY(4px);
+      box-shadow:
+        0 1px 0 #11111d,
+        inset -2px -2px 0 rgba(0, 0, 0, 0.4);
+    }
+
+    .pixel-btn.primary {
+      background: var(--pixel-success);
+      color: #091f0c;
+      box-shadow:
+        0 5px 0 var(--pixel-success-dark),
+        inset -3px -3px 0 rgba(0, 0, 0, 0.25),
+        inset 3px 3px 0 rgba(255, 255, 255, 0.45);
+    }
+    .pixel-btn.primary:hover {
+      background: #52f265;
+    }
+
+    .pixel-btn.accent {
+      background: var(--pixel-accent);
+      color: #261800;
+      box-shadow:
+        0 5px 0 var(--pixel-accent-dark),
+        inset -3px -3px 0 rgba(0, 0, 0, 0.25),
+        inset 3px 3px 0 rgba(255, 255, 255, 0.45);
+    }
+
+    .pixel-btn.danger {
+      background: var(--pixel-danger);
+      color: #fff;
+      box-shadow:
+        0 5px 0 var(--pixel-danger-dark),
+        inset -3px -3px 0 rgba(0, 0, 0, 0.3),
+        inset 3px 3px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    .pixel-btn.selected {
+      background: var(--pixel-cyan);
+      color: #051c24;
+      border-color: #ffffff;
+      box-shadow:
+        0 4px 0 #007788,
+        inset 3px 3px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    /* Top HUD Bar */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      z-index: 10;
+      pointer-events: none;
+      gap: 10px;
+    }
+
+    .hud-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      pointer-events: auto;
+    }
+
+    .hud-card {
+      background: rgba(24, 24, 37, 0.88);
+      border: 3px solid #fff;
+      box-shadow: 0 4px 0 #0d0d16;
+      padding: 8px 10px;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .hud-label {
+      color: #a0a0c0;
+      font-size: 8px;
+      display: block;
+    }
+
+    .hud-value {
+      color: var(--pixel-accent);
+      font-size: 13px;
+    }
+
+    .hud-value.speed {
+      color: var(--pixel-cyan);
+    }
+
+    /* Quick Weather Pill Bar on HUD */
+    #quick-weather-bar {
+      display: flex;
+      gap: 4px;
+    }
+
+    .weather-mini-btn {
+      padding: 7px 9px;
+      font-size: 11px;
+    }
+
+    /* Floating Notification Toast (e.g., Boost / Weather Change) */
+    #toast-banner {
+      position: absolute;
+      top: 76px;
+      left: 50%;
+      transform: translateX(-50%) scale(0.9);
+      background: rgba(24, 24, 37, 0.92);
+      border: 3px solid var(--pixel-accent);
+      color: var(--pixel-accent);
+      padding: 8px 14px;
+      font-size: 11px;
+      z-index: 12;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      text-align: center;
+      white-space: nowrap;
+      box-shadow: 0 4px 0 #000;
+    }
+
+    #toast-banner.show {
+      opacity: 1;
+      transform: translateX(-50%) scale(1);
+    }
+
+    /* Overlays (Start Screen, Settings Modal, Game Over) */
+    .overlay-screen {
+      position: absolute;
+      inset: 0;
+      background: rgba(12, 12, 20, 0.72);
+      backdrop-filter: blur(2px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 20;
+    }
+
+    .overlay-screen.hidden {
+      display: none !important;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 500px;
+      padding: 22px 20px;
+      text-align: center;
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+
+    .game-title {
+      font-size: clamp(20px, 5vw, 32px);
+      line-height: 1.3;
+      color: var(--pixel-accent);
+      text-shadow:
+        4px 4px 0 #b83227,
+        -2px -2px 0 #000;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      font-size: 10px;
+      color: #c5c5e0;
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+
+    /* Weather Selector Grid */
+    .section-title {
+      font-size: 10px;
+      color: var(--pixel-cyan);
+      text-align: left;
+      margin-bottom: 8px;
+      margin-top: 14px;
+      text-transform: uppercase;
+    }
+
+    .weather-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .weather-option {
+      padding: 10px 8px;
+      font-size: 10px;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Settings Rows */
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(14, 14, 24, 0.65);
+      border: 2px solid #48486e;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      gap: 10px;
+      text-align: left;
+    }
+
+    .setting-label {
+      font-size: 10px;
+      line-height: 1.4;
+    }
+
+    .setting-sub {
+      font-size: 8px;
+      color: #9999b8;
+      display: block;
+      margin-top: 3px;
+    }
+
+    /* Pixel Range Slider */
+    input[type="range"].pixel-slider {
+      -webkit-appearance: none;
+      width: 110px;
+      height: 12px;
+      background: #141422;
+      border: 2px solid #fff;
+      outline: none;
+    }
+    input[type="range"].pixel-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 22px;
+      background: var(--pixel-accent);
+      border: 2px solid #fff;
+      cursor: pointer;
+    }
+
+    /* Mobile / On-Screen Touch Controls */
+    #touch-controls {
+      position: absolute;
+      bottom: 18px;
+      left: 0;
+      right: 0;
+      padding: 0 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      z-index: 15;
+      pointer-events: none;
+    }
+
+    #touch-controls.hidden {
+      display: none !important;
+    }
+
+    .touch-cluster {
+      display: flex;
+      gap: 14px;
+      pointer-events: auto;
+    }
+
+    .touch-btn {
+      width: 68px;
+      height: 68px;
+      font-size: 20px;
+      background: rgba(36, 36, 56, 0.78);
+      border: 4px solid rgba(255, 255, 255, 0.88);
+      box-shadow: 0 6px 0 rgba(10, 10, 18, 0.9);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      touch-action: manipulation;
+    }
+
+    .touch-btn.nitro-btn {
+      width: 74px;
+      height: 68px;
+      font-size: 11px;
+      background: rgba(255, 180, 0, 0.85);
+      color: #1c1000;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .touch-btn:active, .touch-btn.pressed {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 rgba(10, 10, 18, 0.9);
+      background: rgba(0, 229, 255, 0.85);
+      color: #041d24;
+    }
+
+    /* Swipe Hint Overlay on Canvas */
+    #swipe-zone-hint {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.75);
+      background: rgba(0, 0, 0, 0.45);
+      padding: 6px 12px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      pointer-events: none;
+      z-index: 9;
+    }
+
+    .stats-summary {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin: 16px 0;
+    }
+
+    .stat-box {
+      background: #161624;
+      border: 2px solid #55557a;
+      padding: 10px;
+    }
+
+    /* Responsive Adjustments */
+    @media (max-width: 600px) {
+      .hud-card {
+        padding: 6px 8px;
+        font-size: 8px;
+      }
+      .hud-value {
+        font-size: 11px;
+      }
+      .weather-mini-btn {
+        padding: 6px 7px;
+        font-size: 10px;
+      }
+      .touch-btn {
+        width: 62px;
+        height: 62px;
+      }
+      .modal-card {
+        padding: 16px 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+  <!-- 3D Voxel Canvas -->
+  <canvas id="game-canvas"></canvas>
+  <div class="scanlines"></div>
+
+  <!-- Top HUD -->
+  <div id="hud">
+    <div class="hud-group">
+      <div class="hud-card">
+        <span class="hud-label">SCORE</span>
+        <span id="hud-score" class="hud-value">0</span>
+      </div>
+      <div class="hud-card">
+        <span class="hud-label">BEST</span>
+        <span id="hud-best" class="hud-value">0</span>
+      </div>
+      <div class="hud-card">
+        <span class="hud-label">SPEED</span>
+        <span id="hud-speed" class="hud-value speed">0 KM/H</span>
+      </div>
+    </div>
+
+    <div class="hud-group">
+      <!-- Live Weather Switcher on HUD -->
+      <div id="quick-weather-bar" title="Switch Weather">
+        <button class="pixel-btn weather-mini-btn selected" data-weather="sunny" aria-label="Sunny Weather">☀️</button>
+        <button class="pixel-btn weather-mini-btn" data-weather="rainy" aria-label="Rainy Weather">🌧️</button>
+        <button class="pixel-btn weather-mini-btn" data-weather="snowy" aria-label="Snowy Weather">❄️</button>
+        <button class="pixel-btn weather-mini-btn" data-weather="night" aria-label="Night Sunset Weather">🌙</button>
+      </div>
+      <button id="btn-open-settings" class="pixel-btn" style="padding: 8px 10px; font-size: 11px;" aria-label="Settings">⚙️</button>
+    </div>
+  </div>
+
+  <!-- Toast Banner -->
+  <div id="toast-banner">SUNNY DAY MODE</div>
+
+  <!-- On-Screen Touch / Mouse Controls -->
+  <div id="touch-controls">
+    <div class="touch-cluster">
+      <button id="btn-left" class="touch-btn" aria-label="Steer Left">◀</button>
+      <button id="btn-right" class="touch-btn" aria-label="Steer Right">▶</button>
+    </div>
+    <div class="touch-cluster">
+      <button id="btn-boost" class="touch-btn nitro-btn" aria-label="Boost Speed">
+        <span>⚡</span>
+        <span>BOOST</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="swipe-zone-hint" class="hidden">SWIPE LEFT / RIGHT TO STEER • HOLD TO BOOST</div>
+
+  <!-- START SCREEN MODAL -->
+  <div id="start-screen" class="overlay-screen">
+    <div class="pixel-box modal-card">
+      <h1 class="game-title">PIXEL DRIFT 3D</h1>
+      <p class="subtitle">DODGE VOXEL TRAFFIC • COLLECT COINS • MASTER EVERY WEATHER</p>
+
+      <div class="section-title">SELECT WEATHER MODE</div>
+      <div class="weather-grid" id="start-weather-grid">
+        <button class="pixel-btn weather-option selected" data-weather="sunny">
+          <span>☀️ SUNNY DAY</span>
+        </button>
+        <button class="pixel-btn weather-option" data-weather="rainy">
+          <span>🌧️ PIXEL RAIN</span>
+        </button>
+        <button class="pixel-btn weather-option" data-weather="snowy">
+          <span>❄️ SNOWSTORM</span>
+        </button>
+        <button class="pixel-btn weather-option" data-weather="night">
+          <span>🌙 NEON NIGHT</span>
+        </button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
+        <button id="btn-start-game" class="pixel-btn primary" style="padding: 16px; font-size: 14px;">
+          ▶ START ENGINE
+        </button>
+        <button id="btn-start-settings" class="pixel-btn">
+          ⚙️ GAME SETTINGS
+        </button>
+      </div>
+
+      <p style="font-size: 8px; color: #8c8cb0; margin-top: 16px; line-height: 1.6;">
+        PC: A/D or ◀/▶ STEER • W/▲ BOOST<br>
+        PHONE: ON-SCREEN BUTTONS OR SWIPE
+      </p>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settings-screen" class="overlay-screen hidden">
+    <div class="pixel-box modal-card">
+      <h2 class="game-title" style="font-size: 20px;">SETTINGS</h2>
+
+      <div class="section-title">WEATHER ATMOSPHERE</div>
+      <div class="weather-grid" id="settings-weather-grid">
+        <button class="pixel-btn weather-option selected" data-weather="sunny">☀️ SUNNY</button>
+        <button class="pixel-btn weather-option" data-weather="rainy">🌧️ RAINY</button>
+        <button class="pixel-btn weather-option" data-weather="snowy">❄️ SNOWY</button>
+        <button class="pixel-btn weather-option" data-weather="night">🌙 NIGHT</button>
+      </div>
+
+      <div class="section-title">CONTROLS & CAMERA</div>
+
+      <div class="setting-row">
+        <div>
+          <span class="setting-label">TOUCH CONTROLS</span>
+          <span class="setting-sub">Buttons or Drag/Swipe</span>
+        </div>
+        <button id="btn-toggle-control" class="pixel-btn selected" style="padding: 8px 10px; font-size: 9px;">
+          BUTTONS
+        </button>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <span class="setting-label">CAMERA VIEW</span>
+          <span class="setting-sub">Chase Cam or Hood Cam</span>
+        </div>
+        <button id="btn-toggle-camera" class="pixel-btn" style="padding: 8px 10px; font-size: 9px;">
+          CHASE
+        </button>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <span class="setting-label">STEER SENSITIVITY</span>
+          <span id="sens-val-label" class="setting-sub">NORMAL (1.0x)</span>
+        </div>
+        <input id="slider-sensitivity" type="range" min="0.6" max="1.6" step="0.1" value="1.0" class="pixel-slider" />
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <span class="setting-label">PIXEL RESOLUTION</span>
+          <span id="pixel-res-label" class="setting-sub">CRISP RETRO (2x)</span>
+        </div>
+        <button id="btn-toggle-pixel" class="pixel-btn" style="padding: 8px 10px; font-size: 9px;">
+          RETRO 2X
+        </button>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <span class="setting-label">RETRO SFX AUDIO</span>
+          <span class="setting-sub">8-Bit Engine & Coins</span>
+        </div>
+        <button id="btn-toggle-sound" class="pixel-btn selected" style="padding: 8px 10px; font-size: 9px;">
+          ON 🔊
+        </button>
+      </div>
+
+      <div style="margin-top: 18px; display: flex; gap: 10px; justify-content: center;">
+        <button id="btn-close-settings" class="pixel-btn primary" style="width: 100%;">
+          ✔ RESUME / DONE
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER MODAL -->
+  <div id="gameover-screen" class="overlay-screen hidden">
+    <div class="pixel-box modal-card">
+      <h2 class="game-title" style="color: var(--pixel-danger); text-shadow: 4px 4px 0 #3b0812;">WRECKED!</h2>
+      <p id="gameover-reason" class="subtitle">YOU CRASHED INTO TRAFFIC</p>
+
+      <div class="stats-summary">
+        <div class="stat-box">
+          <span class="hud-label">FINAL SCORE</span>
+          <span id="final-score" class="hud-value">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="hud-label">BEST SCORE</span>
+          <span id="final-best" class="hud-value" style="color: var(--pixel-success);">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="hud-label">COINS</span>
+          <span id="final-coins" class="hud-value">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="hud-label">TOP SPEED</span>
+          <span id="final-topspeed" class="hud-value speed">0 KM/H</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button id="btn-restart-game" class="pixel-btn primary" style="padding: 15px; font-size: 13px;">
+          ↻ DRIVE AGAIN
+        </button>
+        <button id="btn-gameover-settings" class="pixel-btn">
+          ⚙️ CHANGE WEATHER / SETTINGS
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * ============================================================================
+ * PIXEL DRIFT 3D - Complete 3D Voxel Endless Driving Game
+ * Features:
+ * - Three.js 3D Voxel Engine with pixelated low-res pixelation pass (crisp edges)
+ * - 3D Pixel Clouds floating across the sky
+ * - Selective Weather System (Sunny, Rainy, Snowy, Neon Night) with particles & lighting
+ * - Procedural Retro 8-Bit Web Audio Synthesizer (Engine hum, Coin chime, Crash boom)
+ * - Responsive PC Keyboard (WASD/Arrows) + Mobile Touch Buttons & Swipe/Drag Steering
+ * ============================================================================
+ */
+
+// --- 1. WEB AUDIO RETRO SOUND SYNTHESIZER ---
+class RetroSoundEngine {
+  constructor() {
+    this.ctx = null;
+    this.enabled = true;
+    this.engineOsc = null;
+    this.engineGain = null;
+  }
+
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        this.ctx = new AudioCtx();
+      }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+
+  startEngine() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx || this.engineOsc) return;
+
+    try {
+      this.engineOsc = this.ctx.createOscillator();
+      this.engineGain = this.ctx.createGain();
+      this.engineOsc.type = 'sawtooth';
+      this.engineOsc.frequency.setValueAtTime(55, this.ctx.currentTime);
+
+      // Lowpass filter to make engine warm & chiptune-like
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(220, this.ctx.currentTime);
+
+      this.engineGain.gain.setValueAtTime(0.035, this.ctx.currentTime);
+      this.engineOsc.connect(filter);
+      filter.connect(this.engineGain);
+      this.engineGain.connect(this.ctx.destination);
+      this.engineOsc.start();
+    } catch (e) {
+      // Ignore audio policy errors before interaction
+    }
+  }
+
+  updateEnginePitch(speedRatio, isBoosting) {
+    if (!this.enabled || !this.engineOsc || !this.ctx) return;
+    const baseFreq = 48 + speedRatio * 68 + (isBoosting ? 28 : 0);
+    this.engineOsc.frequency.setTargetAtTime(baseFreq, this.ctx.currentTime, 0.08);
+    this.engineGain.gain.setTargetAtTime(0.035, this.ctx.currentTime, 0.08);
+  }
+
+  stopEngine() {
+    if (this.engineOsc) {
+      try {
+        this.engineOsc.stop();
+        this.engineOsc.disconnect();
+      } catch (e) {}
+      this.engineOsc = null;
+      this.engineGain = null;
+    }
+  }
+
+  playCoin() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(987.77, now); // B5
+    osc.frequency.setValueAtTime(1318.51, now + 0.07); // E6
+
+    gain.gain.setValueAtTime(0.09, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.26);
+  }
+
+  playWeatherSwitch() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(440, now);
+    osc.frequency.setValueAtTime(660, now + 0.06);
+
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.17);
+  }
+
+  playCrash() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    // White noise burst for 8-bit explosion
+    const bufferSize = this.ctx.sampleRate * 0.45;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(600, now);
+    filter.frequency.exponentialRampToValueAtTime(80, now + 0.45);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+    noise.start(now);
+  }
+}
+
+const sfx = new RetroSoundEngine();
+
+// --- 2. WEATHER CONFIGURATIONS ---
+const WEATHER_PRESETS = {
+  sunny: {
+    name: '☀️ SUNNY DAY MODE',
+    skyColor: 0x6ec6ff,
+    fogColor: 0x8ad4ff,
+    fogDensity: 0.0075,
+    ambientColor: 0xffffff,
+    ambientIntensity: 0.85,
+    dirColor: 0xfff5d6,
+    dirIntensity: 1.1,
+    groundColor: 0x4caf50,
+    roadColor: 0x363945,
+    cloudColor: 0xffffff,
+    cloudShadow: 0xdceeff,
+    particleType: 'none',
+    headlightsOn: false
+  },
+  rainy: {
+    name: '🌧️ PIXEL RAIN MODE',
+    skyColor: 0x2c384a,
+    fogColor: 0x354357,
+    fogDensity: 0.012,
+    ambientColor: 0x8fa8c8,
+    ambientIntensity: 0.65,
+    dirColor: 0xa3c2e0,
+    dirIntensity: 0.55,
+    groundColor: 0x2a5c38,
+    roadColor: 0x22252e,
+    cloudColor: 0x6d7d94,
+    cloudShadow: 0x4a5668,
+    particleType: 'rain',
+    headlightsOn: true
+  },
+  snowy: {
+    name: '❄️ SNOWSTORM MODE',
+    skyColor: 0xc8dce8,
+    fogColor: 0xdcebf5,
+    fogDensity: 0.011,
+    ambientColor: 0xeef7ff,
+    ambientIntensity: 0.95,
+    dirColor: 0xffffff,
+    dirIntensity: 0.8,
+    groundColor: 0xeaf4fc,
+    roadColor: 0x4c5866,
+    cloudColor: 0xf4faff,
+    cloudShadow: 0xcbdbe8,
+    particleType: 'snow',
+    headlightsOn: false
+  },
+  night: {
+    name: '🌙 NEON NIGHT MODE',
+    skyColor: 0x0d0b26,
+    fogColor: 0x16113a,
+    fogDensity: 0.0115,
+    ambientColor: 0x4a428a,
+    ambientIntensity: 0.55,
+    dirColor: 0x8095ff,
+    dirIntensity: 0.45,
+    groundColor: 0x162922,
+    roadColor: 0x191a24,
+    cloudColor: 0x383269,
+    cloudShadow: 0x211d42,
+    particleType: 'stars',
+    headlightsOn: true
+  }
+};
+
+// --- 3. GAME STATE & SETTINGS ---
+const state = {
+  mode: 'START', // START, PLAYING, PAUSED, GAMEOVER
+  weather: 'sunny',
+  score: 0,
+  bestScore: parseInt(localStorage.getItem('pixelDriftBest') || '0', 10),
+  coins: 0,
+  baseSpeed: 38,
+  currentSpeed: 38,
+  maxSpeed: 105,
+  topSpeedReached: 0,
+  playerX: 0,
+  targetX: 0,
+  carTilt: 0,
+  roadWidth: 13,
+  // Settings
+  controlMode: 'buttons', // 'buttons' or 'swipe'
+  cameraMode: 'chase',    // 'chase' or 'hood'
+  sensitivity: 1.0,
+  pixelScale: 2,          // 1 = native crisp, 2 = chunky retro pixels
+  // Input flags
+  keys: { left: false, right: false, boost: false },
+  touch: { left: false, right: false, boost: false }
+};
+
+// --- 4. THREE.JS SCENE SETUP ---
+const canvas = document.getElementById('game-canvas');
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: false, // Crisp pixel edges!
+  powerPreference: 'high-performance'
+});
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.BasicShadowMap; // Hard blocky pixel shadows
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(WEATHER_PRESETS.sunny.skyColor);
+scene.fog = new THREE.FogExp2(WEATHER_PRESETS.sunny.fogColor, WEATHER_PRESETS.sunny.fogDensity);
+
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 220);
+camera.position.set(0, 5.2, 10.5);
+camera.lookAt(0, 1.2, -12);
+
+// Lights
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xfff5d6, 1.1);
+dirLight.position.set(22, 38, 18);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 512;
+dirLight.shadow.mapSize.height = 512;
+dirLight.shadow.camera.near = 5;
+dirLight.shadow.camera.far = 120;
+const d = 28;
+dirLight.shadow.camera.left = -d;
+dirLight.shadow.camera.right = d;
+dirLight.shadow.camera.top = d;
+dirLight.shadow.camera.bottom = -d;
+scene.add(dirLight);
+
+// --- 5. PROCEDURAL PIXEL TEXTURES FOR ROAD & GRASS ---
+function createPixelRoadTexture() {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const ctx = c.getContext('2d');
+
+  // Asphalt base
+  ctx.fillStyle = '#363945';
+  ctx.fillRect(0, 0, 64, 64);
+
+  // Subtle pixel asphalt noise
+  for (let y = 0; y < 64; y += 2) {
+    for (let x = 0; x < 64; x += 2) {
+      if ((x + y) % 4 === 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        ctx.fillRect(x, y, 2, 2);
+      } else if ((x * y) % 7 === 0) {
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.fillRect(x, y, 2, 2);
+      }
+    }
+  }
+
+  // Red & White Retro Rumble Curbs on Left & Right edges
+  ctx.fillStyle = '#ff3b5c';
+  ctx.fillRect(0, 0, 4, 32);
+  ctx.fillRect(60, 0, 4, 32);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 32, 4, 32);
+  ctx.fillRect(60, 32, 4, 32);
+
+  // Dashed Lane Dividers (3 lanes)
+  ctx.fillStyle = '#ffdd44';
+  ctx.fillRect(21, 8, 2, 22);
+  ctx.fillRect(41, 8, 2, 22);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(1, 22);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  return tex;
+}
+
+const roadTexture = createPixelRoadTexture();
+
+// Ground & Road Meshes
+const groundGeo = new THREE.PlaneGeometry(260, 260);
+const groundMat = new THREE.MeshLambertMaterial({ color: WEATHER_PRESETS.sunny.groundColor });
+const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+groundMesh.rotation.x = -Math.PI / 2;
+groundMesh.position.y = -0.05;
+groundMesh.receiveShadow = true;
+scene.add(groundMesh);
+
+const roadGeo = new THREE.PlaneGeometry(state.roadWidth, 260);
+const roadMat = new THREE.MeshLambertMaterial({ map: roadTexture });
+const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+roadMesh.rotation.x = -Math.PI / 2;
+roadMesh.position.y = 0.01;
+roadMesh.receiveShadow = true;
+scene.add(roadMesh);
+
+// --- 6. VOXEL BUILDERS (CARS, CLOUDS, TREES, COINS) ---
+function createVoxelBox(w, h, d, color, x, y, z, emissive = 0x000000) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mat = new THREE.MeshLambertMaterial({ color, emissive });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+// Build Player Voxel Sports Car
+function buildPlayerCar() {
+  const car = new THREE.Group();
+
+  // Chassis lower body (Retro Red-Orange)
+  car.add(createVoxelBox(2.1, 0.55, 4.1, 0xff3b30, 0, 0.55, 0));
+  // Front splitter & rear diffuser
+  car.add(createVoxelBox(2.2, 0.22, 0.5, 0x22222b, 0, 0.35, -1.95));
+  car.add(createVoxelBox(2.2, 0.25, 0.4, 0x22222b, 0, 0.38, 1.95));
+
+  // Cabin / Roof
+  car.add(createVoxelBox(1.65, 0.52, 2.0, 0xff5e54, 0, 1.05, 0.15));
+  // Windshield & Rear Window (Dark tinted cyan-black)
+  car.add(createVoxelBox(1.52, 0.42, 2.08, 0x1b2838, 0, 1.04, 0.15));
+  // Side windows
+  car.add(createVoxelBox(1.7, 0.36, 1.5, 0x1b2838, 0, 1.05, 0.15));
+
+  // Racing Stripes (White)
+  car.add(createVoxelBox(0.24, 0.57, 4.12, 0xffffff, -0.32, 0.56, 0));
+  car.add(createVoxelBox(0.24, 0.57, 4.12, 0xffffff, 0.32, 0.56, 0));
+
+  // Rear Spoiler Wing
+  car.add(createVoxelBox(0.16, 0.4, 0.2, 0x1e1e26, -0.75, 0.95, 1.75));
+  car.add(createVoxelBox(0.16, 0.4, 0.2, 0x1e1e26, 0.75, 0.95, 1.75));
+  car.add(createVoxelBox(2.15, 0.14, 0.45, 0xff3b30, 0, 1.18, 1.78));
+
+  // 4 Blocky Wheels
+  const wheelPositions = [
+    [-1.08, 0.4, -1.25],
+    [1.08, 0.4, -1.25],
+    [-1.08, 0.4, 1.25],
+    [1.08, 0.4, 1.25]
+  ];
+  const wheels = [];
+  wheelPositions.forEach(([wx, wy, wz]) => {
+    const wGroup = new THREE.Group();
+    wGroup.position.set(wx, wy, wz);
+    wGroup.add(createVoxelBox(0.36, 0.76, 0.76, 0x18181f, 0, 0, 0));
+    wGroup.add(createVoxelBox(0.4, 0.36, 0.36, 0xd0d5e0, 0, 0, 0)); // Pixel rim
+    car.add(wGroup);
+    wheels.push(wGroup);
+  });
+  car.userData.wheels = wheels;
+
+  // Headlights (Glow in rain/night)
+  const hlLeft = createVoxelBox(0.42, 0.22, 0.15, 0xfff6a6, -0.68, 0.58, -2.05, 0xffee77);
+  const hlRight = createVoxelBox(0.42, 0.22, 0.15, 0xfff6a6, 0.68, 0.58, -2.05, 0xffee77);
+  car.add(hlLeft, hlRight);
+
+  // Headlight Spotlight Beams for Night/Rain
+  const spotLeft = new THREE.SpotLight(0xfff4b8, 0, 38, Math.PI / 5, 0.4, 1);
+  spotLeft.position.set(-0.68, 0.7, -2.0);
+  spotLeft.target.position.set(-0.68, 0, -18);
+  car.add(spotLeft);
+  car.add(spotLeft.target);
+
+  const spotRight = new THREE.SpotLight(0xfff4b8, 0, 38, Math.PI / 5, 0.4, 1);
+  spotRight.position.set(0.68, 0.7, -2.0);
+  spotRight.target.position.set(0.68, 0, -18);
+  car.add(spotRight);
+  car.add(spotRight.target);
+
+  car.userData.headlights = [spotLeft, spotRight];
+
+  // Glowing Red Taillights
+  const tlLeft = createVoxelBox(0.5, 0.22, 0.14, 0xff1e42, -0.65, 0.62, 2.05, 0xff0022);
+  const tlRight = createVoxelBox(0.5, 0.22, 0.14, 0xff1e42, 0.65, 0.62, 2.05, 0xff0022);
+  car.add(tlLeft, tlRight);
+
+  return car;
+}
+
+const playerCar = buildPlayerCar();
+playerCar.position.set(0, 0, 2);
+scene.add(playerCar);
+
+// Build Traffic Voxel Vehicles (Sedans, Trucks, Vans)
+const TRAFFIC_COLORS = [0x29b6f6, 0xffca28, 0xab47bc, 0x26a69a, 0xec407a, 0x78909c];
+
+function createTrafficCar() {
+  const group = new THREE.Group();
+  const color = TRAFFIC_COLORS[Math.floor(Math.random() * TRAFFIC_COLORS.length)];
+  const isTruck = Math.random() > 0.65;
+
+  if (isTruck) {
+    // Boxy Pixel Delivery Truck
+    group.add(createVoxelBox(2.2, 0.55, 4.8, 0x37474f, 0, 0.55, 0));
+    group.add(createVoxelBox(2.1, 1.35, 1.3, color, 0, 1.35, -1.55));
+    group.add(createVoxelBox(1.9, 0.55, 0.15, 0x1c262b, 0, 1.45, -2.21)); // Windshield
+    group.add(createVoxelBox(2.25, 1.65, 3.2, 0xeceff1, 0, 1.55, 0.75)); // Cargo box
+    group.userData.halfW = 1.1;
+    group.userData.halfL = 2.4;
+  } else {
+    // Pixel Coupe / Sedan
+    group.add(createVoxelBox(2.0, 0.55, 3.9, color, 0, 0.52, 0));
+    group.add(createVoxelBox(1.6, 0.5, 1.9, color, 0, 1.0, 0.1));
+    group.add(createVoxelBox(1.5, 0.4, 1.98, 0x1c262b, 0, 0.99, 0.1));
+    group.userData.halfW = 1.0;
+    group.userData.halfL = 1.95;
+  }
+
+  // Wheels
+  const wz = isTruck ? 1.5 : 1.2;
+  [[-1.05, 0.38, -wz], [1.05, 0.38, -wz], [-1.05, 0.38, wz], [1.05, 0.38, wz]].forEach(([x, y, z]) => {
+    group.add(createVoxelBox(0.32, 0.72, 0.72, 0x14141a, x, y, z));
+  });
+
+  // Taillights
+  const rearZ = isTruck ? 2.41 : 1.96;
+  group.add(createVoxelBox(0.45, 0.2, 0.1, 0xff1744, -0.65, 0.6, rearZ, 0xd50000));
+  group.add(createVoxelBox(0.45, 0.2, 0.1, 0xff1744, 0.65, 0.6, rearZ, 0xd50000));
+
+  return group;
+}
+
+// Build Spinning Pixel Gold Coin
+function createPixelCoin() {
+  const group = new THREE.Group();
+  const outer = createVoxelBox(0.95, 0.95, 0.26, 0xffd600, 0, 0.85, 0, 0x553300);
+  const inner = createVoxelBox(0.5, 0.5, 0.32, 0xfff59d, 0, 0.85, 0, 0x442200);
+  group.add(outer, inner);
+  return group;
+}
+
+// Build Roadside Voxel Scenery (Trees & Street Lamps)
+function createRoadsideProp() {
+  const group = new THREE.Group();
+  const type = Math.random();
+
+  if (type < 0.72) {
+    // Voxel Pine / Oak Tree
+    group.add(createVoxelBox(0.7, 2.2, 0.7, 0x6d4c41, 0, 1.1, 0));
+    const leafColor = state.weather === 'snowy' ? 0xdbeeff : (Math.random() > 0.5 ? 0x2e7d32 : 0x388e3c);
+    group.add(createVoxelBox(2.6, 1.3, 2.6, leafColor, 0, 2.6, 0));
+    group.add(createVoxelBox(1.9, 1.2, 1.9, leafColor, 0, 3.7, 0));
+    group.add(createVoxelBox(1.1, 1.0, 1.1, leafColor, 0, 4.6, 0));
+  } else {
+    // Retro Pixel Street Lamp
+    group.add(createVoxelBox(0.3, 5.2, 0.3, 0x546e7a, 0, 2.6, 0));
+    group.add(createVoxelBox(1.4, 0.25, 0.3, 0x546e7a, 0.55, 5.1, 0));
+    group.add(createVoxelBox(0.45, 0.22, 0.36, 0xfff59d, 1.05, 4.92, 0, 0xffea00));
+  }
+  return group;
+}
+
+// --- 7. 3D PIXEL CLOUDS IN THE SKY ---
+const clouds = [];
+const cloudMaterials = [];
+
+function createPixelCloud() {
+  const cloud = new THREE.Group();
+  const mainMat = new THREE.MeshLambertMaterial({ color: WEATHER_PRESETS.sunny.cloudColor });
+  const subMat = new THREE.MeshLambertMaterial({ color: WEATHER_PRESETS.sunny.cloudShadow });
+  cloudMaterials.push(mainMat, subMat);
+
+  // Stepped Voxel Cloud Cluster
+  const blocks = [
+    [6.5, 1.4, 3.5, 0, 0, 0, mainMat],
+    [4.2, 1.5, 2.8, -1.2, 1.1, 0.2, mainMat],
+    [3.4, 1.2, 2.4, 1.8, 0.9, -0.3, mainMat],
+    [5.8, 0.6, 3.2, 0, -0.7, 0, subMat]
+  ];
+
+  blocks.forEach(([w, h, d, x, y, z, mat]) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    mesh.position.set(x, y, z);
+    cloud.add(mesh);
+  });
+
+  cloud.position.set(
+    (Math.random() - 0.5) * 130,
+    18 + Math.random() * 12,
+    -20 - Math.random() * 160
+  );
+  cloud.userData.driftSpeed = 1.2 + Math.random() * 1.8;
+  scene.add(cloud);
+  clouds.push(cloud);
+}
+
+for (let i = 0; i < 18; i++) {
+  createPixelCloud();
+}
+
+// --- 8. WEATHER PARTICLES (PIXEL RAIN & SNOW) ---
+const PARTICLE_COUNT = 550;
+const particleGeo = new THREE.BufferGeometry();
+const particlePositions = new Float32Array(PARTICLE_COUNT * 3);
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  particlePositions[i * 3] = (Math.random() - 0.5) * 65;
+  particlePositions[i * 3 + 1] = Math.random() * 28;
+  particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 90 - 20;
+}
+particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+
+const particleMat = new THREE.PointsMaterial({
+  color: 0x99ccff,
+  size: 0.35,
+  transparent: true,
+  opacity: 0.85
+});
+const weatherParticles = new THREE.Points(particleGeo, particleMat);
+weatherParticles.visible = false;
+scene.add(weatherParticles);
+
+// --- 9. ENTITY POOLS (TRAFFIC, COINS, SCENERY) ---
+const trafficList = [];
+const coinList = [];
+const sceneryList = [];
+const LANES = [-4.2, 0, 4.2];
+
+// Populate initial roadside scenery
+for (let z = 15; z > -190; z -= 14) {
+  [-1, 1].forEach(side => {
+    const prop = createRoadsideProp();
+    prop.position.set(side * (state.roadWidth / 2 + 2.8 + Math.random() * 7), 0, z);
+    if (side === 1) prop.rotation.y = Math.PI;
+    scene.add(prop);
+    sceneryList.push(prop);
+  });
+}
+
+function clearDynamicEntities() {
+  trafficList.forEach(t => scene.remove(t));
+  trafficList.length = 0;
+  coinList.forEach(c => scene.remove(c));
+  coinList.length = 0;
+}
+
+function spawnTrafficWave() {
+  // Spawn 1 or 2 cars across the 3 lanes so there's always an open path
+  const shuffledLanes = [...LANES].sort(() => Math.random() - 0.5);
+  const count = Math.random() > 0.42 ? 2 : 1;
+
+  for (let i = 0; i < count; i++) {
+    const enemy = createTrafficCar();
+    enemy.position.set(shuffledLanes[i], 0, -175 - i * 8);
+    enemy.userData.speedOffset = 10 + Math.random() * 10; // Moves forward slower than player
+    scene.add(enemy);
+    trafficList.push(enemy);
+  }
+
+  // Spawn coin in the free lane
+  const freeLane = shuffledLanes[count];
+  if (freeLane !== undefined && Math.random() > 0.25) {
+    const coin = createPixelCoin();
+    coin.position.set(freeLane, 0, -175);
+    scene.add(coin);
+    coinList.push(coin);
+  }
+}
+
+// --- 10. WEATHER & SETTINGS APPLICATION ---
+let toastTimer = null;
+function showToast(text) {
+  const el = document.getElementById('toast-banner');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+function applyWeather(weatherKey, silent = false) {
+  const preset = WEATHER_PRESETS[weatherKey];
+  if (!preset) return;
+  state.weather = weatherKey;
+
+  scene.background.setHex(preset.skyColor);
+  scene.fog.color.setHex(preset.fogColor);
+  scene.fog.density = preset.fogDensity;
+
+  ambientLight.color.setHex(preset.ambientColor);
+  ambientLight.intensity = preset.ambientIntensity;
+  dirLight.color.setHex(preset.dirColor);
+  dirLight.intensity = preset.dirIntensity;
+
+  groundMat.color.setHex(preset.groundColor);
+  roadMat.color.setHex(preset.roadColor);
+
+  // Update 3D Cloud Colors
+  for (let i = 0; i < cloudMaterials.length; i += 2) {
+    cloudMaterials[i].color.setHex(preset.cloudColor);
+    cloudMaterials[i + 1].color.setHex(preset.cloudShadow);
+  }
+
+  // Toggle Car Headlights
+  const hlIntensity = preset.headlightsOn ? 2.4 : 0;
+  playerCar.userData.headlights.forEach(spot => {
+    spot.intensity = hlIntensity;
+  });
+
+  // Update Weather Particles
+  if (preset.particleType === 'rain') {
+    weatherParticles.visible = true;
+    particleMat.color.setHex(0x88ccff);
+    particleMat.size = 0.34;
+  } else if (preset.particleType === 'snow') {
+    weatherParticles.visible = true;
+    particleMat.color.setHex(0xffffff);
+    particleMat.size = 0.52;
+  } else if (preset.particleType === 'stars') {
+    weatherParticles.visible = true;
+    particleMat.color.setHex(0xfff5b8);
+    particleMat.size = 0.4;
+  } else {
+    weatherParticles.visible = false;
+  }
+
+  // Sync active button styles across HUD, Start Screen, and Settings
+  document.querySelectorAll('[data-weather]').forEach(btn => {
+    if (btn.dataset.weather === weatherKey) {
+      btn.classList.add('selected');
+    } else {
+      btn.classList.remove('selected');
+    }
+  });
+
+  if (!silent) {
+    sfx.playWeatherSwitch();
+    showToast(preset.name);
+  }
+}
+
+// --- 11. GAME FLOW CONTROLS ---
+const startScreen = document.getElementById('start-screen');
+const settingsScreen = document.getElementById('settings-screen');
+const gameoverScreen = document.getElementById('gameover-screen');
+const touchControlsEl = document.getElementById('touch-controls');
+const swipeHintEl = document.getElementById('swipe-zone-hint');
+
+document.getElementById('hud-best').textContent = state.bestScore;
+
+function updateControlVisibility() {
+  if (state.controlMode === 'buttons') {
+    touchControlsEl.classList.remove('hidden');
+    swipeHintEl.classList.add('hidden');
+  } else {
+    touchControlsEl.classList.add('hidden');
+    if (state.mode === 'PLAYING') {
+      swipeHintEl.classList.remove('hidden');
+    } else {
+      swipeHintEl.classList.add('hidden');
+    }
+  }
+}
+
+function startGame() {
+  sfx.init();
+  sfx.startEngine();
+
+  clearDynamicEntities();
+  state.mode = 'PLAYING';
+  state.score = 0;
+  state.coins = 0;
+  state.baseSpeed = 38;
+  state.currentSpeed = 38;
+  state.topSpeedReached = 0;
+  state.playerX = 0;
+  state.targetX = 0;
+  state.carTilt = 0;
+  playerCar.position.set(0, 0, 2);
+  playerCar.rotation.set(0, 0, 0);
+
+  startScreen.classList.add('hidden');
+  settingsScreen.classList.add('hidden');
+  gameoverScreen.classList.add('hidden');
+  updateControlVisibility();
+  spawnTimer = 0.5;
+}
+
+function triggerGameOver() {
+  state.mode = 'GAMEOVER';
+  sfx.stopEngine();
+  sfx.playCrash();
+
+  const finalScore = Math.floor(state.score);
+  if (finalScore > state.bestScore) {
+    state.bestScore = finalScore;
+    localStorage.setItem('pixelDriftBest', state.bestScore);
+  }
+
+  document.getElementById('hud-best').textContent = state.bestScore;
+  document.getElementById('final-score').textContent = finalScore;
+  document.getElementById('final-best').textContent = state.bestScore;
+  document.getElementById('final-coins').textContent = state.coins;
+  document.getElementById('final-topspeed').textContent = `${Math.round(state.topSpeedReached)} KM/H`;
+
+  swipeHintEl.classList.add('hidden');
+  gameoverScreen.classList.remove('hidden');
+}
+
+// --- 12. INPUT HANDLING (KEYBOARD + TOUCH BUTTONS + SWIPE/DRAG) ---
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') state.keys.left = true;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') state.keys.right = true;
+  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') state.keys.boost = true;
+});
+
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') state.keys.left = false;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') state.keys.right = false;
+  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') state.keys.boost = false;
+});
+
+function bindHoldButton(btnId, flagName) {
+  const btn = document.getElementById(btnId);
+  const startPress = (e) => {
+    e.preventDefault();
+    state.touch[flagName] = true;
+    btn.classList.add('pressed');
+  };
+  const endPress = (e) => {
+    e.preventDefault();
+    state.touch[flagName] = false;
+    btn.classList.remove('pressed');
+  };
+  btn.addEventListener('touchstart', startPress, { passive: false });
+  btn.addEventListener('touchend', endPress, { passive: false });
+  btn.addEventListener('touchcancel', endPress, { passive: false });
+  btn.addEventListener('mousedown', startPress);
+  btn.addEventListener('mouseup', endPress);
+  btn.addEventListener('mouseleave', endPress);
+}
+
+bindHoldButton('btn-left', 'left');
+bindHoldButton('btn-right', 'right');
+bindHoldButton('btn-boost', 'boost');
+
+// Swipe / Drag Steering on Canvas
+let isDragging = false;
+let dragStartX = 0;
+let dragStartPlayerX = 0;
+
+canvas.addEventListener('touchstart', (e) => {
+  if (state.mode !== 'PLAYING') return;
+  if (e.touches.length > 0) {
+    isDragging = true;
+    dragStartX = e.touches[0].clientX;
+    dragStartPlayerX = state.targetX;
+    if (state.controlMode === 'swipe') {
+      state.touch.boost = true; // Hold to boost in swipe mode
+    }
+  }
+}, { passive: true });
+
+canvas.addEventListener('touchmove', (e) => {
+  if (!isDragging || state.mode !== 'PLAYING') return;
+  if (e.touches.length > 0) {
+    const dx = e.touches[0].clientX - dragStartX;
+    const roadSpan = state.roadWidth - 2.4;
+    const normalizedMove = (dx / window.innerWidth) * roadSpan * 1.45 * state.sensitivity;
+    state.targetX = Math.max(-roadSpan / 2, Math.min(roadSpan / 2, dragStartPlayerX + normalizedMove));
+  }
+}, { passive: true });
+
+canvas.addEventListener('touchend', () => {
+  isDragging = false;
+  if (state.controlMode === 'swipe') {
+    state.touch.boost = false;
+  }
+});
+
+// UI Button Listeners
+document.querySelectorAll('[data-weather]').forEach(btn => {
+  btn.addEventListener('click', () => applyWeather(btn.dataset.weather));
+});
+
+document.getElementById('btn-start-game').addEventListener('click', startGame);
+document.getElementById('btn-restart-game').addEventListener('click', startGame);
+
+let previousModeBeforeSettings = 'START';
+
+function openSettings() {
+  previousModeBeforeSettings = state.mode;
+  if (state.mode === 'PLAYING') {
+    state.mode = 'PAUSED';
+    sfx.stopEngine();
+  }
+  settingsScreen.classList.remove('hidden');
+}
+
+function closeSettings() {
+  settingsScreen.classList.add('hidden');
+  if (previousModeBeforeSettings === 'PAUSED' || previousModeBeforeSettings === 'PLAYING') {
+    state.mode = 'PLAYING';
+    sfx.startEngine();
+  }
+  updateControlVisibility();
+}
+
+document.getElementById('btn-open-settings').addEventListener('click', openSettings);
+document.getElementById('btn-start-settings').addEventListener('click', openSettings);
+document.getElementById('btn-gameover-settings').addEventListener('click', openSettings);
+document.getElementById('btn-close-settings').addEventListener('click', closeSettings);
+
+// Settings Toggles
+document.getElementById('btn-toggle-control').addEventListener('click', (e) => {
+  state.controlMode = state.controlMode === 'buttons' ? 'swipe' : 'buttons';
+  e.target.textContent = state.controlMode === 'buttons' ? 'BUTTONS' : 'SWIPE/DRAG';
+  updateControlVisibility();
+});
+
+document.getElementById('btn-toggle-camera').addEventListener('click', (e) => {
+  state.cameraMode = state.cameraMode === 'chase' ? 'hood' : 'chase';
+  e.target.textContent = state.cameraMode === 'chase' ? 'CHASE' : 'HOOD CAM';
+});
+
+document.getElementById('slider-sensitivity').addEventListener('input', (e) => {
+  state.sensitivity = parseFloat(e.target.value);
+  document.getElementById('sens-val-label').textContent = `${state.sensitivity.toFixed(1)}x`;
+});
+
+document.getElementById('btn-toggle-pixel').addEventListener('click', (e) => {
+  state.pixelScale = state.pixelScale === 2 ? 1 : 2;
+  e.target.textContent = state.pixelScale === 2 ? 'RETRO 2X' : 'HD 1X';
+  document.getElementById('pixel-res-label').textContent =
+    state.pixelScale === 2 ? 'CRISP RETRO (2x)' : 'SHARP NATIVE (1x)';
+  handleResize();
+});
+
+document.getElementById('btn-toggle-sound').addEventListener('click', (e) => {
+  sfx.enabled = !sfx.enabled;
+  e.target.textContent = sfx.enabled ? 'ON 🔊' : 'OFF 🔇';
+  e.target.classList.toggle('selected', sfx.enabled);
+  if (!sfx.enabled) {
+    sfx.stopEngine();
+  } else if (state.mode === 'PLAYING') {
+    sfx.startEngine();
+  }
+});
+
+// --- 13. RESIZE HANDLER WITH PIXEL ART SCALING ---
+function handleResize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+
+  // Render at fractional resolution for authentic chunky pixel-art edges
+  renderer.setSize(Math.floor(w / state.pixelScale), Math.floor(h / state.pixelScale), false);
+}
+window.addEventListener('resize', handleResize);
+handleResize();
+
+// --- 14. MAIN ANIMATION & GAME LOOP ---
+let lastTime = performance.now();
+let spawnTimer = 1.0;
+
+function animate(now) {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+
+  // 1. Always drift 3D pixel clouds in sky (even on Start/Game Over screens)
+  for (let i = 0; i < clouds.length; i++) {
+    const c = clouds[i];
+    c.position.x += c.userData.driftSpeed * dt;
+    if (state.mode === 'PLAYING') {
+      c.position.z += state.currentSpeed * 0.16 * dt;
+    }
+    if (c.position.x > 75) c.position.x = -75;
+    if (c.position.z > 25) {
+      c.position.z = -175 - Math.random() * 20;
+      c.position.x = (Math.random() - 0.5) * 130;
+    }
+  }
+
+  // 2. Animate Weather Particles (Rain / Snow / Twinkling Night Stars)
+  if (weatherParticles.visible) {
+    const pos = weatherParticles.geometry.attributes.position.array;
+    const isRain = state.weather === 'rainy';
+    const isSnow = state.weather === 'snowy';
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const idx = i * 3;
+      if (isRain) {
+        pos[idx + 1] -= 38 * dt;
+        pos[idx + 2] += (state.mode === 'PLAYING' ? state.currentSpeed * 0.6 : 12) * dt;
+      } else if (isSnow) {
+        pos[idx + 1] -= 9 * dt;
+        pos[idx] += Math.sin(now * 0.002 + i) * 2.2 * dt;
+        pos[idx + 2] += (state.mode === 'PLAYING' ? state.currentSpeed * 0.4 : 6) * dt;
+      } else {
+        // Night stars drift gently
+        pos[idx + 2] += (state.mode === 'PLAYING' ? state.currentSpeed * 0.08 : 1.5) * dt;
+      }
+
+      if (pos[idx + 1] < 0) pos[idx + 1] = 26;
+      if (pos[idx + 2] > 18) pos[idx + 2] = -85;
+    }
+    weatherParticles.geometry.attributes.position.needsUpdate = true;
+  }
+
+  // 3. Demo Idle Cruising on Start Screen
+  if (state.mode === 'START') {
+    roadTexture.offset.y -= 0.45 * dt;
+    playerCar.position.x = Math.sin(now * 0.0012) * 2.2;
+    playerCar.rotation.z = -Math.cos(now * 0.0012) * 0.05;
+    playerCar.userData.wheels.forEach(w => { w.rotation.x -= 8 * dt; });
+    camera.position.set(Math.sin(now * 0.0006) * 2.5, 5.2, 10.5);
+    camera.lookAt(0, 1.2, -12);
+    renderer.render(scene, camera);
+    return;
+  }
+
+  // 4. Active Gameplay Logic
+  if (state.mode === 'PLAYING') {
+    const steerLeft = state.keys.left || state.touch.left;
+    const steerRight = state.keys.right || state.touch.right;
+    const isBoosting = state.keys.boost || state.touch.boost;
+
+    // Gradually ramp up base speed over time
+    state.baseSpeed = Math.min(state.maxSpeed - 20, state.baseSpeed + 1.15 * dt);
+    const targetSpeed = isBoosting ? state.baseSpeed + 24 : state.baseSpeed;
+    state.currentSpeed += (targetSpeed - state.currentSpeed) * 5 * dt;
+
+    // Speedometer & Score calculation
+    const kmh = Math.round(state.currentSpeed * 2.35);
+    if (kmh > state.topSpeedReached) state.topSpeedReached = kmh;
+    state.score += state.currentSpeed * 0.35 * dt;
+
+    document.getElementById('hud-score').textContent = Math.floor(state.score);
+    document.getElementById('hud-speed').textContent = `${kmh} KM/H`;
+
+    // Engine Pitch Audio
+    sfx.updateEnginePitch((state.currentSpeed - 35) / 70, isBoosting);
+
+    // Steering Movement
+    const steerSpeed = 13.5 * state.sensitivity;
+    const maxOffset = state.roadWidth / 2 - 1.25;
+
+    if (steerLeft) state.targetX -= steerSpeed * dt;
+    if (steerRight) state.targetX += steerSpeed * dt;
+    state.targetX = Math.max(-maxOffset, Math.min(maxOffset, state.targetX));
+
+    const prevX = state.playerX;
+    state.playerX += (state.targetX - state.playerX) * 12 * dt;
+    const lateralVel = (state.playerX - prevX) / Math.max(dt, 0.001);
+
+    playerCar.position.x = state.playerX;
+    // Dynamic voxel drift body roll & yaw
+    playerCar.rotation.z = THREE.MathUtils.clamp(-lateralVel * 0.016, -0.14, 0.14);
+    playerCar.rotation.y = THREE.MathUtils.clamp(-lateralVel * 0.014, -0.16, 0.16);
+
+    // Spin wheels
+    playerCar.userData.wheels.forEach(w => {
+      w.rotation.x -= state.currentSpeed * 0.35 * dt;
+    });
+
+    // Camera Follow (Chase vs Hood Cam + subtle boost FOV punch)
+    const targetFov = isBoosting ? 70 : 62;
+    camera.fov += (targetFov - camera.fov) * 6 * dt;
+    camera.updateProjectionMatrix();
+
+    if (state.cameraMode === 'chase') {
+      camera.position.x += (state.playerX * 0.65 - camera.position.x) * 8 * dt;
+      camera.position.y += (5.2 - camera.position.y) * 8 * dt;
+      camera.position.z += (10.5 - camera.position.z) * 8 * dt;
+      camera.lookAt(state.playerX * 0.45, 1.2, -14);
+    } else {
+      // Hood Cam
+      camera.position.set(state.playerX, 1.65, 0.5);
+      camera.lookAt(state.playerX, 1.4, -22);
+    }
+
+    // Scroll Road Texture
+    roadTexture.offset.y -= (state.currentSpeed / 11.8) * dt;
+
+    // Scroll Roadside Scenery
+    for (let i = 0; i < sceneryList.length; i++) {
+      const prop = sceneryList[i];
+      prop.position.z += state.currentSpeed * dt;
+      if (prop.position.z > 20) {
+        prop.position.z -= 210;
+      }
+    }
+
+    // Spawn Traffic Waves
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) {
+      spawnTrafficWave();
+      // Spawn interval tightens as speed increases
+      spawnTimer = Math.max(0.75, 1.85 - (state.currentSpeed - 38) * 0.014);
+    }
+
+    // Move & Check Traffic Collisions
+    for (let i = trafficList.length - 1; i >= 0; i--) {
+      const enemy = trafficList[i];
+      const relSpeed = state.currentSpeed - enemy.userData.speedOffset;
+      enemy.position.z += relSpeed * dt;
+
+      // AABB Collision Box Check against Player Car
+      const dx = Math.abs(enemy.position.x - playerCar.position.x);
+      const dz = Math.abs(enemy.position.z - playerCar.position.z);
+      if (dx < (enemy.userData.halfW + 0.85) && dz < (enemy.userData.halfL + 1.75)) {
+        triggerGameOver();
+        break;
+      }
+
+      if (enemy.position.z > 24) {
+        scene.remove(enemy);
+        trafficList.splice(i, 1);
+      }
+    }
+
+    // Move & Collect Pixel Coins
+    for (let i = coinList.length - 1; i >= 0; i--) {
+      const coin = coinList[i];
+      coin.position.z += state.currentSpeed * dt;
+      coin.rotation.y += 4.2 * dt;
+
+      const dx = Math.abs(coin.position.x - playerCar.position.x);
+      const dz = Math.abs(coin.position.z - playerCar.position.z);
+      if (dx < 1.55 && dz < 2.2) {
+        state.coins += 1;
+        state.score += 50;
+        sfx.playCoin();
+        showToast('+50 COIN BONUS!');
+        scene.remove(coin);
+        coinList.splice(i, 1);
+        continue;
+      }
+
+      if (coin.position.z > 24) {
+        scene.remove(coin);
+        coinList.splice(i, 1);
+      }
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+// Initialize default weather silently and start loop on window load
+window.addEventListener('load', () => {
+  applyWeather('sunny', true);
+  updateControlVisibility();
+  requestAnimationFrame(animate);
+});
+</script>
+</body>
+</html>
